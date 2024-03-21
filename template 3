@@ -1,0 +1,29 @@
+function onRecvUniversalPacket(bytes32 channelId, UniversalPacket calldata packet)
+       external
+       override
+       onlyIbcMw
+       returns (AckPacket memory ackPacket)
+   {
+        recvedPackets.push(UcPacketWithChannel(channelId, packet));
+        uint64 _counter = getCounter();
+
+        (address _caller, string memory _query) = abi.decode(packet.appData, (address, string));
+
+        require(!addressMap[_caller], "Address already queried");
+        if (_counter >= 500) {
+            return AckPacket(true, abi.encode(LIMIT_MESSAGE));
+        }
+
+        if (keccak256(bytes(_query)) == keccak256(bytes("crossChainQuery"))) {
+            increment();
+            addressMap[_caller] = true;
+            uint64 newCounter = getCounter();
+            emit LogQuery(_caller, _query, newCounter);
+
+            string memory counterString = Strings.toString(newCounter);
+
+            string memory _ackData = string(abi.encodePacked(SECRET_MESSAGE, counterString));
+
+            return AckPacket(true, abi.encode(_ackData));
+        }
+   }
